@@ -1,7 +1,7 @@
 import os
 
-from sqlalchemy import create_engine, Column, Integer, String, Text, DateTime, SmallInteger, Boolean, ForeignKey, Table
-from sqlalchemy.orm import declarative_base, relationship, sessionmaker
+from sqlalchemy import create_engine, Column, Integer, String, Text, DateTime, SmallInteger, Boolean, ForeignKey
+from sqlalchemy.orm import declarative_base, relationship
 from sqlalchemy.sql import func
 from sqlalchemy_utils.types.choice import ChoiceType
 
@@ -12,13 +12,13 @@ Base = declarative_base()
 
 
 class Message(Base):
-    __tablename__ = 'massages'
+    __tablename__ = 'messages'
     id = Column(Integer, primary_key=True, autoincrement=True)
     text = Column(Text(length=255), nullable=False)
     pub_date = Column(DateTime(timezone=True), server_default=func.now())
     author_id = Column(Integer, ForeignKey('users.id'))
     chat_id = Column(Integer, ForeignKey('chats.id'))
-    comments = relationship('Comment', backref='massage', cascade="all, delete")
+    comments = relationship('Comment', backref='message', cascade="all, delete")
 
     def __str__(self):
         return self.text[:15]
@@ -27,7 +27,7 @@ class Message(Base):
 class Comment(Base):
     __tablename__ = 'comments'
     id = Column(Integer, primary_key=True, autoincrement=True)
-    massage_id = Column(Integer, ForeignKey('massages.id'))
+    message_id = Column(Integer, ForeignKey('messages.id'))
     author_id = Column(Integer, ForeignKey('users.id'))
     text = Column(Text(length=255), nullable=False)
     created = Column(DateTime(timezone=True), server_default=func.now())
@@ -38,11 +38,12 @@ class Comment(Base):
 
 class ChatUser(Base):
     __tablename__ = 'chats_users'
-
-    id = Column(Integer, primary_key=True, autoincrement=True)
+    chat_id = Column(Integer, ForeignKey('chats.id'), primary_key=True)
+    user_id = Column(Integer, ForeignKey('users.id'), primary_key=True)
     last_connect = Column(DateTime(timezone=True))
-    user_id = Column(Integer, ForeignKey('users.id'))
-    chat_id = Column(Integer, ForeignKey('chats.id'))
+    cautions = Column(SmallInteger, default=0)
+    banned = Column(Boolean, default=False)
+    banned_till = Column(DateTime(timezone=True), nullable=True)
 
 
 # users_chats = Table(
@@ -61,9 +62,8 @@ class User(Base):
     comments = relationship('Comment', backref='author', lazy='dynamic', cascade="all, delete")
     messages = relationship('Message', backref='author', lazy='dynamic', cascade="all, delete")
     chats = relationship('Chat', secondary='chats_users', back_populates='users')
-    warnings = Column(SmallInteger, default=0)
-    banned = Column(Boolean, default=False)
-    banned_till = Column(DateTime(timezone=True), nullable=True)
+    messages_in_hour_in_public_chat = Column(Integer, default=0)
+    start_chatting_in_public_chat = Column(DateTime(timezone=True), server_default=func.now())
 
     def __str__(self):
         return self.user_name
@@ -81,6 +81,11 @@ class Chat(Base):
     name = Column(String, nullable=False)
     messages = relationship('Message', backref='chat', lazy='dynamic', cascade='all, delete')
     users = relationship('User', secondary='chats_users', back_populates='chats', lazy='dynamic')
+    created = Column(DateTime(timezone=True), server_default=func.now())
+
+    def __str__(self):
+        return self.name
 
 
-Base.metadata.create_all(engine)
+if __name__ == '__main__':
+    Base.metadata.create_all(engine)
