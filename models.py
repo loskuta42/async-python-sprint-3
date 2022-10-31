@@ -6,7 +6,7 @@ from sqlalchemy.sql import func
 from sqlalchemy_utils.types.choice import ChoiceType
 
 basedir = os.path.abspath(os.path.dirname(__file__))
-engine = create_engine('sqlite:///' + os.path.join(basedir, 'data.sqlite'), echo=True)
+engine = create_engine('sqlite:///' + os.path.join(basedir, 'data_test.sqlite'), echo=True)
 
 Base = declarative_base()
 
