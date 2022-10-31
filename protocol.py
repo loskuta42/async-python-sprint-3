@@ -51,16 +51,23 @@ class HTTPProtocol(asyncio.Protocol):
         self._transport = transport
         logger.info('Start serving %s', transport.get_extra_info('peername'))
 
+    def eof_received(self):
+        self.connection.receive_data(b"")
+        self._deliver_events()
+        return True
+
     def _deliver_events(self):
         while True:
             event = self.connection.next_event()
+            if isinstance(event, h11.ConnectionClosed):
+                print('-' * 10, 'h11.ConnectionClosed')
             try:
                 if isinstance(event, h11.Request):
                     self._request_processing(self.connection, event)
                 elif (
-                        isinstance(event, h11.ConnectionClosed)
-                        or event is h11.NEED_DATA or event is h11.PAUSED
+                    event is h11.NEED_DATA or event is h11.PAUSED
                 ):
+                    print('-'*20, 111)
                     break
             except RuntimeError:
                 self._send_error(405)
@@ -72,10 +79,12 @@ class HTTPProtocol(asyncio.Protocol):
     def data_received(self, data):
         self.connection.receive_data(data)
         self._deliver_events()
+        print('-' * 20, 222)
 
         if self.connection.our_state is h11.DONE:
             self.connection.start_next_cycle()
             self._deliver_events()
+            print('-' * 20, 333)
 
     def _request_processing(self, connection, request_event):
         if request_event.method not in [b'GET', b'POST']:

@@ -172,7 +172,6 @@ class Client:
             else:
                 self.connect_to_chat(report_on)
 
-
     def even_cycle(self):
         redirect = 0
         while True:
@@ -228,5 +227,6 @@ class Client:
                     logger.error(f'{error}')
 
     def close_connection(self):
-        pass
-        # self.sock.close()
+        self.send(h11.ConnectionClosed())
+        self.sock.close()
+
