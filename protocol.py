@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session
 
 from models import User, Chat, Message, Comment, ChatUser
 
+
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 logger.addHandler(logging.StreamHandler(stream=sys.stdout))
@@ -47,23 +48,23 @@ class HTTPProtocol(asyncio.Protocol):
     def __init__(self):
         self.connection = h11.Connection(h11.SERVER)
 
-    def connection_made(self, transport):
+    def connection_made(self, transport: asyncio.Transport) -> None:
         self._transport = transport
         logger.info('Start serving %s', transport.get_extra_info('peername'))
 
-    def eof_received(self):
+    def eof_received(self) -> None:
         self.connection.receive_data(b"")
         self._deliver_events()
         return True
 
-    def _deliver_events(self):
+    def _deliver_events(self) -> None:
         while True:
             event = self.connection.next_event()
             try:
                 if isinstance(event, h11.Request):
                     self._request_processing(self.connection, event)
                 elif (
-                    event is h11.NEED_DATA or event is h11.PAUSED
+                        event is h11.NEED_DATA or event is h11.PAUSED
                 ):
                     break
             except RuntimeError:
@@ -73,7 +74,7 @@ class HTTPProtocol(asyncio.Protocol):
                 self._transport.close()
                 break
 
-    def data_received(self, data):
+    def data_received(self, data) -> None:
         self.connection.receive_data(data)
         self._deliver_events()
 
@@ -81,7 +82,7 @@ class HTTPProtocol(asyncio.Protocol):
             self.connection.start_next_cycle()
             self._deliver_events()
 
-    def _request_processing(self, connection, request_event):
+    def _request_processing(self, connection:h11.Connection, request_event: h11.Request) -> None:
         if request_event.method not in [b'GET', b'POST']:
             logger.error('unsupported HTTP method')
             raise RuntimeError('unsupported method')
@@ -90,12 +91,8 @@ class HTTPProtocol(asyncio.Protocol):
             event = connection.next_event()
             if isinstance(event, h11.EndOfMessage):
                 break
-            try:
-                assert isinstance(event, h11.Data)
-            except AssertionError:
-                logger.error('AssertionError')
-                logger.exception('exception in sending response')
-                break
+            elif isinstance(event, h11.Data):
+                continue
             if request_event.method == b'POST':
                 data = json.loads(event.data.decode('utf-8'))
                 if request_event.target == b'/get-token':
@@ -206,6 +203,7 @@ class HTTPProtocol(asyncio.Protocol):
             user_id=user_caller.id
         ).first()
         last_connect = chat_user_obj.last_connect
+
         if not last_connect:
             last_connect = chat.created
         temp_dict = {
@@ -220,7 +218,10 @@ class HTTPProtocol(asyncio.Protocol):
         ).limit(
             messages_number
         ).all()
-        unread_messages = session.query(Message).filter(Message.chat == chat, Message.pub_date > last_connect).all()
+        unread_messages = session.query(
+            Message
+        ).filter(Message.chat == chat,
+                 Message.pub_date > last_connect).all()
         for message in last_messages:
             temp_dict['messages'].append(
                 {
@@ -241,7 +242,7 @@ class HTTPProtocol(asyncio.Protocol):
                     'message_comments': str(message.comments)
                 }
             )
-        chat_user_obj.last_connect = datetime.datetime.now()
+        chat_user_obj.last_connect = datetime.datetime.utcnow()
         session.commit()
         return self._get_encode_body_from_data(temp_dict)
 
@@ -281,27 +282,6 @@ class HTTPProtocol(asyncio.Protocol):
         headers = self._get_headers_for_json_body(body)
         self._send_response_with_ok_code(body=body, headers=headers)
 
-    # def _get_body_for_comment_response(self, session, message_id):
-    #     message = session.query(Message).filter_by(id=message_id).first()
-    #     comments = message.comments
-    #     result = {
-    #         'message': {
-    #             'id': message.id,
-    #             'pub_date': message.pub_date.strftime('%d.%m.%Y, %H:%M:%S'),
-    #             'author': message.author.user_name,
-    #             'message_text': message.text,
-    #             'message_comments': []
-    #         }
-    #     }
-    #     for comment in comments:
-    #         result['message']['message_comments'].append({
-    #             'id': comment.id,
-    #             'created': comment.created.strftime('%d.%m.%Y, %H:%M:%S'),
-    #             'author': message.author.user_name,
-    #             'comment_text': comment.text
-    #         })
-    #     return self._get_encode_body_from_data(result)
-
     def _send_response_for_comment(self, message_id, comment, user):
         with Session(engine) as session:
             user_obj = session.query(User).filter_by(user_name=user.user_name).first()
@@ -332,7 +312,7 @@ class HTTPProtocol(asyncio.Protocol):
                 messages_in_hour = user_obj.messages_in_hour_in_public_chat
                 finish_time = start_chatting_time + datetime.timedelta(minutes=minutes_limit)
                 if messages_in_hour >= public_mes_limit:
-                    if finish_time > datetime.datetime.now():
+                    if finish_time > datetime.datetime.utcnow():
                         self._send_warning(
                             f'message limit has been reached, '
                             f'please wait until {finish_time.strftime("%d.%m.%Y, %H:%M:%S")}'
@@ -340,7 +320,7 @@ class HTTPProtocol(asyncio.Protocol):
                         return
                     else:
                         user_obj.messages_in_hour_in_public_chat = 1
-                        user_obj.start_chatting_in_public_chat = datetime.datetime.now()
+                        user_obj.start_chatting_in_public_chat = datetime.datetime.utcnow()
                         session.commit()
                 else:
                     user_obj.messages_in_hour_in_public_chat += 1
@@ -375,7 +355,7 @@ class HTTPProtocol(asyncio.Protocol):
             user_id=user_obj.id
         ).first()
         if chat_user_obj.banned:
-            if chat_user_obj.banned_till > datetime.datetime.now():
+            if chat_user_obj.banned_till > datetime.datetime.utcnow():
                 self._send_warning('You are banned!')
                 return chat_user_obj.banned
             chat_user_obj.banned = False
@@ -392,7 +372,7 @@ class HTTPProtocol(asyncio.Protocol):
         ).filter_by(
             user_id=user.id
         ).first()
-        chat_user_obj.last_connect = datetime.datetime.now()
+        chat_user_obj.last_connect = datetime.datetime.utcnow()
         session.commit()
 
     def _send_error(self, error_code):
@@ -472,7 +452,7 @@ class HTTPProtocol(asyncio.Protocol):
             if chat_user_obj.cautions == 2:
                 chat_user_obj.banned = True
                 chat_user_obj.banned_till = (
-                        datetime.datetime.now() + datetime.timedelta(hours=ban_hours)
+                        datetime.datetime.utcnow() + datetime.timedelta(hours=ban_hours)
                 )
                 session.commit()
             else:
@@ -496,7 +476,7 @@ class HTTPProtocol(asyncio.Protocol):
         self.send(h11.EndOfMessage())
 
     @staticmethod
-    def _get_encode_body_from_data(data: dict):
+    def _get_encode_body_from_data(data: dict) -> bytes:
         return json.dumps(
             data, indent=4, separators=(',', ': ')
         ).encode('utf-8')
