@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 
 from models import Chat, ChatUser, Comment, Message, User
 
+
 basedir = os.path.abspath(os.path.dirname(__file__))
 engine = create_engine('sqlite:///' + os.path.join(basedir, 'data.sqlite'), echo=True)
 

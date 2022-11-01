@@ -6,6 +6,7 @@ import yaml
 
 from protocol import HTTPProtocol
 
+
 with open('logging_config.yaml', 'r') as f:
     config = yaml.safe_load(f.read())
     logging.config.dictConfig(config)

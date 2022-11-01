@@ -2,9 +2,10 @@ import os
 
 from sqlalchemy import (Boolean, Column, DateTime, ForeignKey, Integer,
                         SmallInteger, String, Text, create_engine)
-from sqlalchemy.orm import declarative_base, relationship
+from sqlalchemy.orm import declarative_base, relationship, Session
 from sqlalchemy.sql import func
 from sqlalchemy_utils.types.choice import ChoiceType
+
 
 basedir = os.path.abspath(os.path.dirname(__file__))
 engine = create_engine('sqlite:///' + os.path.join(basedir, 'data.sqlite'), echo=True)
@@ -47,14 +48,6 @@ class ChatUser(Base):
     banned_till = Column(DateTime(timezone=True), nullable=True)
 
 
-# users_chats = Table(
-#     'users_chats',
-#     Base.metadata,
-#     Column('chat_id', ForeignKey('chats.id'), primary_key=True),
-#     Column('user_id', ForeignKey('users.id'), primary_key=True)
-# )
-
-
 class User(Base):
     __tablename__ = 'users'
     id = Column(Integer, primary_key=True, autoincrement=True)
@@ -90,3 +83,11 @@ class Chat(Base):
 
 if __name__ == '__main__':
     Base.metadata.create_all(engine)
+
+    with Session(engine) as session:
+        public_chat = Chat(
+            name='public_chat',
+            type='public'
+        )
+        session.add(public_chat)
+        session.commit()

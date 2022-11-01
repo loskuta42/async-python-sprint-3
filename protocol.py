@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session
 
 from models import Chat, ChatUser, Comment, Message, User
 
+
 with open('logging_config.yaml', 'r') as f:
     config = yaml.safe_load(f.read())
     logging.config.dictConfig(config)

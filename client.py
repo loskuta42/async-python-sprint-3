@@ -9,6 +9,7 @@ from typing import Optional
 import h11
 import yaml
 
+
 with open('logging_config.yaml', 'r') as f:
     config = yaml.safe_load(f.read())
     logging.config.dictConfig(config)

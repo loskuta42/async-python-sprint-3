@@ -1,2 +1,0 @@
-test_client1 63f35648d621f5dc1d01340216c08e11
-test_client2 79a2f82ab4d013ed4e053de19b9badd1
