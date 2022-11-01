@@ -14,7 +14,10 @@ logger = logging.getLogger(__name__)
 
 
 class Server:
-    """Custom http server."""
+    """
+    Custom http server.
+    For more info see README.md
+    """
 
     def __init__(self, host: str = '127.0.0.1', port: int = 8000) -> None:
         """

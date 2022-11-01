@@ -48,7 +48,10 @@ MESSAGES_FOR_USER = {
 
 
 class HTTPProtocol(asyncio.Protocol):
-    """Custom HTTP protocol."""
+    """
+    Custom HTTP protocol.
+    For more info see README.md
+    """
     def __init__(self):
         self.connection = h11.Connection(h11.SERVER)
 
