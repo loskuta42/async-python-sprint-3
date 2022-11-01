@@ -24,7 +24,7 @@ class Server:
         self.host = host
         self.port = port
 
-    async def run(self) -> Coroutine:
+    async def run(self):
         loop = asyncio.get_event_loop()
         server = await loop.create_server(HTTPProtocol, self.host, self.port)
         await server.serve_forever()
