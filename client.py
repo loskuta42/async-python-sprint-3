@@ -18,7 +18,11 @@ logger = logging.getLogger(__name__)
 
 
 class Client:
-    """Client for custom http-server."""
+    """
+    Client for custom http-server.
+    When the object is created, it automatically connects to the server,
+    authenticates, and requests general chat information.
+    """
     def __init__(
             self,
             user_name: str,
@@ -97,6 +101,11 @@ class Client:
             chat_name: str = 'public_chat',
             redirect: bool = False
     ) -> None:
+        """
+        Makes a request to chat.
+        :param chat_name: name of chat/user.
+        :param redirect: redirect mode.
+        """
         body = json.dumps({'chat_with': chat_name}).encode('utf-8')
         self._send(h11.Request(method='POST', target='/connect',
                                headers=[('Authorization', f'{self._token}'),
@@ -132,6 +141,11 @@ class Client:
             receiver: str = 'public_chat',
             message: str = ''
     ) -> None:
+        """
+        Send message to chat, and redirect back to chat.
+        :param receiver: receiver of message.
+        :param message:  text of the message.
+        """
         if not message:
             logger.error('Enter message, please.')
             return
@@ -159,6 +173,11 @@ class Client:
             message_id: int,
             comment: str = ''
     ) -> None:
+        """
+        add comment to message, and redirect to chat.
+        :param message_id: id of the commenting message.
+        :param comment: text of the comment
+        """
         if not comment:
             logger.error('Enter comment, please.')
             return
@@ -186,6 +205,11 @@ class Client:
             report_on: str,
             chat_type: str = ''
     ) -> None:
+        """
+        retort about user.
+        :param report_on: user for report.
+        :param chat_type: type of the chat where you want report about user.
+        """
         if not chat_type:
             logger.error('Enter chat_type argument, please.')
             return
@@ -215,6 +239,9 @@ class Client:
             self._response = response[0]
 
     def even_cycle(self) -> tuple:
+        """
+        event cycle of getting responce from server.
+        """
         redirect = 0
         response = []
         while True:
@@ -244,6 +271,9 @@ class Client:
         return redirect, response
 
     def get_status(self) -> None:
+        """
+        get status of client and chats.
+        """
         body = json.dumps({'user_name': self.user_name}).encode('utf-8')
         self._send(h11.Request(method='GET', target='/status',
                                headers=[('Authorization', f'{self._token}'),
@@ -285,5 +315,8 @@ class Client:
         return self._last_status
 
     def close_connection(self) -> None:
+        """
+        close connection between client and server.
+        """
         self._send(h11.ConnectionClosed())
         self.sock.close()
