@@ -1,6 +1,7 @@
 import os
 
-from sqlalchemy import create_engine, Column, Integer, String, Text, DateTime, SmallInteger, Boolean, ForeignKey
+from sqlalchemy import (Boolean, Column, DateTime, ForeignKey, Integer,
+                        SmallInteger, String, Text, create_engine)
 from sqlalchemy.orm import declarative_base, relationship
 from sqlalchemy.sql import func
 from sqlalchemy_utils.types.choice import ChoiceType

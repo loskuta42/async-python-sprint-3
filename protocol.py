@@ -1,22 +1,24 @@
 import asyncio
 import datetime
 import json
-import logging
+import logging.config
 import os
 import secrets
-import sys
 import time
+from typing import Optional
 
 import h11
+import yaml
 from sqlalchemy import create_engine, desc
 from sqlalchemy.orm import Session
 
-from models import User, Chat, Message, Comment, ChatUser
+from models import Chat, ChatUser, Comment, Message, User
 
+with open('logging_config.yaml', 'r') as f:
+    config = yaml.safe_load(f.read())
+    logging.config.dictConfig(config)
 
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
-logger.addHandler(logging.StreamHandler(stream=sys.stdout))
 
 basedir = os.path.abspath(os.path.dirname(__file__))
 engine = create_engine('sqlite:///' + os.path.join(basedir, 'data.sqlite'), echo=True)
@@ -52,7 +54,7 @@ class HTTPProtocol(asyncio.Protocol):
         self._transport = transport
         logger.info('Start serving %s', transport.get_extra_info('peername'))
 
-    def eof_received(self) -> None:
+    def eof_received(self) -> bool:
         self.connection.receive_data(b"")
         self._deliver_events()
         return True
@@ -74,7 +76,7 @@ class HTTPProtocol(asyncio.Protocol):
                 self._transport.close()
                 break
 
-    def data_received(self, data) -> None:
+    def data_received(self, data: bytes) -> None:
         self.connection.receive_data(data)
         self._deliver_events()
 
@@ -82,7 +84,7 @@ class HTTPProtocol(asyncio.Protocol):
             self.connection.start_next_cycle()
             self._deliver_events()
 
-    def _request_processing(self, connection:h11.Connection, request_event: h11.Request) -> None:
+    def _request_processing(self, connection: h11.Connection, request_event: h11.Request) -> None:
         if request_event.method not in [b'GET', b'POST']:
             logger.error('unsupported HTTP method')
             raise RuntimeError('unsupported method')
@@ -92,57 +94,56 @@ class HTTPProtocol(asyncio.Protocol):
             if isinstance(event, h11.EndOfMessage):
                 break
             elif isinstance(event, h11.Data):
-                continue
-            if request_event.method == b'POST':
-                data = json.loads(event.data.decode('utf-8'))
-                if request_event.target == b'/get-token':
-                    user_name = data.get('user_name', None)
-                    if not user_name:
-                        self._send_error(401)
-                    else:
-                        self._send_token(user_name)
-                elif request_event.target == b'/connect':
-                    if user_obj := self._check_auth(request_event):
-                        chat_with = data.get('chat_with', 'public_chat')
-                        messages_number = data.get('messages_number', 20)
-                        self._send_response_for_connect_endpoint(
-                            user_obj,
-                            chat_with,
-                            messages_number
+                if request_event.method == b'POST':
+                    data = json.loads(event.data.decode('utf-8'))
+                    if request_event.target == b'/get-token':
+                        user_name = data.get('user_name', None)
+                        if not user_name:
+                            self._send_error(401)
+                        else:
+                            self._send_token(user_name)
+                    elif request_event.target == b'/connect':
+                        if user_obj := self._check_auth(request_event):
+                            chat_with = data.get('chat_with', 'public_chat')
+                            messages_number = data.get('messages_number', 20)
+                            self._send_response_for_connect_endpoint(
+                                user_obj,
+                                chat_with,
+                                messages_number
 
-                        )
-                    else:
-                        self._send_error(401)
-                elif request_event.target == b'/send':
-                    if user_obj := self._check_auth(request_event):
-                        message = data.get('message', None)
-                        if not message:
-                            self._send_error(400)
+                            )
                         else:
-                            chat_name = data.get('send_to', 'public_chat')
-                            self._send_response_for_send_message(user_obj, message, chat_name)
-                elif request_event.target == b'/comment':
-                    if user_obj := self._check_auth(request_event):
-                        message_id = data.get('message_id')
-                        comment = data.get('comment')
-                        if not message_id or not comment:
-                            self._send_error(400)
-                        else:
-                            self._send_response_for_comment(message_id, comment, user_obj)
-                elif request_event.target == b'/report':
-                    if user_obj := self._check_auth(request_event):
-                        report_on = data.get('report_on')
-                        chat_type = data.get('chat_type')
-                        if not report_on or not chat_type:
-                            self._send_error(400)
-                        else:
-                            self._send_response_for_report(user_obj, chat_type, report_on)
-            else:
-                if request_event.target == b'/status':
-                    if user_obj := self._check_auth(request_event):
-                        self._send_response_status_endpoint(user_obj)
+                            self._send_error(401)
+                    elif request_event.target == b'/send':
+                        if user_obj := self._check_auth(request_event):
+                            message = data.get('message', None)
+                            if not message:
+                                self._send_error(400)
+                            else:
+                                chat_name = data.get('send_to', 'public_chat')
+                                self._send_response_for_send_message(user_obj, message, chat_name)
+                    elif request_event.target == b'/comment':
+                        if user_obj := self._check_auth(request_event):
+                            message_id = data.get('message_id')
+                            comment = data.get('comment')
+                            if not message_id or not comment:
+                                self._send_error(400)
+                            else:
+                                self._send_response_for_comment(message_id, comment, user_obj)
+                    elif request_event.target == b'/report':
+                        if user_obj := self._check_auth(request_event):
+                            report_on = data.get('report_on')
+                            chat_type = data.get('chat_type')
+                            if not report_on or not chat_type:
+                                self._send_error(400)
+                            else:
+                                self._send_response_for_report(user_obj, chat_type, report_on)
+                else:
+                    if request_event.target == b'/status':
+                        if user_obj := self._check_auth(request_event):
+                            self._send_response_status_endpoint(user_obj)
 
-    def _send_response_status_endpoint(self, user):
+    def _send_response_status_endpoint(self, user: User) -> None:
         with Session(engine) as session:
             user_obj = session.query(User).filter_by(user_name=user.user_name).first()
             result = {
@@ -168,7 +169,7 @@ class HTTPProtocol(asyncio.Protocol):
             headers = self._get_headers_for_json_body(body)
             self._send_response_with_ok_code(body, headers)
 
-    def _check_auth(self, request_event):
+    def _check_auth(self, request_event: h11.Request) -> Optional[User]:
         token = []
         for name, value in request_event.headers:
             if name.lower() == b'authorization':
@@ -186,17 +187,23 @@ class HTTPProtocol(asyncio.Protocol):
                 return user_obj
         self._send_error(401)
 
-    def _send_response_with_ok_code(self, body: bytes, headers: list):
+    def _send_response_with_ok_code(self, body: bytes, headers: list) -> None:
         response = h11.Response(status_code=200, headers=headers)
         self.send(response)
         self.send(h11.Data(data=body))
         self.send(h11.EndOfMessage())
 
-    def send(self, event):
+    def send(self, event: h11.Event) -> None:
         data = self.connection.send(event)
         self._transport.write(data)
 
-    def _messages_from_chat_to_body(self, session, user_caller, chat, messages_number):
+    def _messages_from_chat_to_body(
+            self,
+            session: Session,
+            user_caller: User,
+            chat: Chat,
+            messages_number: int
+    ) -> bytes:
         chat_user_obj = session.query(ChatUser).filter_by(
             chat_id=chat.id
         ).filter_by(
@@ -246,7 +253,12 @@ class HTTPProtocol(asyncio.Protocol):
         session.commit()
         return self._get_encode_body_from_data(temp_dict)
 
-    def _get_public_messages(self, session, user_caller, messages_number):
+    def _get_public_messages(
+            self,
+            session: Session,
+            user_caller: User,
+            messages_number: int
+    ) -> bytes:
         public_chat = session.query(Chat).filter(
             Chat.type == 'public'
         ).filter_by(
@@ -254,7 +266,13 @@ class HTTPProtocol(asyncio.Protocol):
         ).first()
         return self._messages_from_chat_to_body(session, user_caller, public_chat, messages_number)
 
-    def _get_private_messages(self, session, user_caller, with_user, messages_number):
+    def _get_private_messages(
+            self,
+            session: Session,
+            user_caller: User,
+            with_user: User,
+            messages_number: int
+    ) -> bytes:
         chat_obj = session.query(Chat).filter(
             Chat.type == 'private'
         ).filter(
@@ -268,7 +286,12 @@ class HTTPProtocol(asyncio.Protocol):
         else:
             return self._messages_from_chat_to_body(session, user_caller, chat_obj, messages_number)
 
-    def _send_response_for_connect_endpoint(self, user_caller, chat_with, message_number):
+    def _send_response_for_connect_endpoint(
+            self,
+            user_caller: User,
+            chat_with: str,
+            message_number: int
+    ) -> None:
         with Session(engine) as session:
             user_obj = session.query(User).filter_by(user_name=user_caller.user_name).first()
             if chat_with == 'public_chat':
@@ -282,26 +305,30 @@ class HTTPProtocol(asyncio.Protocol):
         headers = self._get_headers_for_json_body(body)
         self._send_response_with_ok_code(body=body, headers=headers)
 
-    def _send_response_for_comment(self, message_id, comment, user):
+    def _send_response_for_comment(
+            self,
+            message_id: int,
+            comment: str,
+            user: User
+    ) -> None:
         with Session(engine) as session:
             user_obj = session.query(User).filter_by(user_name=user.user_name).first()
             message = session.query(Message).filter_by(id=message_id).first()
             if message:
                 Comment(author=user_obj, message=message, text=comment)
                 session.commit()
-                # self._get_body_for_comment_response(session, message_id)
                 self._send_created_code('Comment have created!')
             else:
                 self._send_error(400)
 
     def _send_response_for_send_message(
             self,
-            user_caller,
-            message,
-            send_to,
+            user_caller: User,
+            message: str,
+            send_to: str,
             public_mes_limit: int = 20,
             minutes_limit: int = 60
-    ):
+    ) -> None:
         with Session(engine) as session:
             user_obj = session.query(User).filter_by(user_name=user_caller.user_name).first()
             if send_to == 'public_chat':
@@ -348,7 +375,12 @@ class HTTPProtocol(asyncio.Protocol):
                     self._add_message_to_db(session, message, chat_obj, user_obj)
             self._send_created_code('Message have sent!')
 
-    def _is_banned(self, session, user_obj, chat_obj):
+    def _is_banned(
+            self,
+            session: Session,
+            user_obj: User,
+            chat_obj: Chat
+    ) -> Optional[bool]:
         chat_user_obj = session.query(ChatUser).filter_by(
             chat_id=chat_obj.id
         ).filter_by(
@@ -363,7 +395,12 @@ class HTTPProtocol(asyncio.Protocol):
             session.commit()
 
     @staticmethod
-    def _add_message_to_db(session, message_text, chat, user):
+    def _add_message_to_db(
+            session: Session,
+            message_text: str,
+            chat: Chat,
+            user: User
+    ) -> None:
         message = Message(text=message_text, author=user, chat=chat)
         session.add(message)
         session.commit()
@@ -374,8 +411,12 @@ class HTTPProtocol(asyncio.Protocol):
         ).first()
         chat_user_obj.last_connect = datetime.datetime.utcnow()
         session.commit()
+        logger.info('Message add to database.')
 
-    def _send_error(self, error_code):
+    def _send_error(
+            self,
+            error_code: int
+    ) -> None:
         body = self._get_encode_body_from_data({'error': ERROR_CODE_TO_MESSAGES[error_code]})
         headers = self._get_headers_for_json_body(body)
         response = h11.Response(status_code=error_code, headers=headers)
@@ -383,17 +424,26 @@ class HTTPProtocol(asyncio.Protocol):
         self.send(h11.Data(data=body))
         self.send(h11.EndOfMessage())
 
-    def _send_info(self, message):
+    def _send_info(
+            self,
+            message: str
+    ) -> None:
         body = self._get_encode_body_from_data({'info': message})
         headers = self._get_headers_for_json_body(body)
         self._send_response_with_ok_code(body, headers)
 
-    def _send_warning(self, message):
+    def _send_warning(
+            self,
+            message: str
+    ) -> None:
         body = self._get_encode_body_from_data({'warning': message})
         headers = self._get_headers_for_json_body(body)
         self._send_response_with_ok_code(body, headers)
 
-    def _send_token(self, user_name):
+    def _send_token(
+            self,
+            user_name: str
+    ) -> None:
         with Session(engine) as session:
             user = session.query(User).filter_by(user_name=user_name).first()
             if user:
@@ -417,8 +467,15 @@ class HTTPProtocol(asyncio.Protocol):
                 body = self._get_encode_body_from_data({'token': token[0]})
                 headers = self._get_headers_for_json_body(body)
                 self._send_response_with_ok_code(body, headers)
+                logger.info('Token send.')
 
-    def _send_response_for_report(self, user, chat_type, report_on, ban_hours: int = 4):
+    def _send_response_for_report(
+            self,
+            user: User,
+            chat_type: str,
+            report_on: str,
+            ban_hours: int = 4
+    ) -> None:
         with Session(engine) as session:
             report_on_obj = session.query(User).filter_by(user_name=report_on).first()
             if not report_on_obj:
@@ -461,13 +518,16 @@ class HTTPProtocol(asyncio.Protocol):
             self._send_created_code('Report sent success.')
 
     @staticmethod
-    def _get_headers_for_json_body(body):
+    def _get_headers_for_json_body(body: bytes) -> list:
         return [
             ('Content-Type', 'application/json'),
             ('Content-Length', str(len(body))),
         ]
 
-    def _send_created_code(self, message):
+    def _send_created_code(
+            self,
+            message: str
+    ) -> None:
         body = self._get_encode_body_from_data({'info': message})
         headers = self._get_headers_for_json_body(body)
         response = h11.Response(status_code=201, headers=headers)
@@ -480,19 +540,3 @@ class HTTPProtocol(asyncio.Protocol):
         return json.dumps(
             data, indent=4, separators=(',', ': ')
         ).encode('utf-8')
-
-
-async def main(host, port):
-    loop = asyncio.get_running_loop()
-    server = await loop.create_server(HTTPProtocol, host, port)
-    await server.serve_forever()
-
-# with Session(engine) as session:
-#     public_chat = Chat(
-#         name='public_chat',
-#         type='public'
-#     )
-#     session.add(public_chat)
-#     session.commit()
-
-# asyncio.run(main('127.0.0.1', 5000))

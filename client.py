@@ -1,25 +1,35 @@
 from __future__ import annotations
 
 import json
-import logging
+import logging.config
 import socket
-import sys
 import time
+from typing import Optional
 
 import h11
+import yaml
+
+with open('logging_config.yaml', 'r') as f:
+    config = yaml.safe_load(f.read())
+    logging.config.dictConfig(config)
 
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
-logger.addHandler(logging.StreamHandler(stream=sys.stdout))
 
 
 class Client:
+    """Client for custom http-server."""
     def __init__(
             self,
-            user_name,
+            user_name: str,
             server_host='127.0.0.1',
             server_port=8000
-    ):
+    ) -> None:
+        """
+
+        :param user_name: client user name;
+        :param server_host: server host;
+        :param server_port: server port.
+        """
         self.user_name = user_name
         self.server_host = server_host
         self.server_port = server_port
@@ -33,7 +43,7 @@ class Client:
         self._last_chat_info = None
         self._last_status = None
 
-    def _send(self, *events):
+    def _send(self, *events: h11.Event) -> None:
         for event in events:
             data = self.conn.send(event)
             if data is None:
@@ -41,7 +51,7 @@ class Client:
             else:
                 self.sock.sendall(data)
 
-    def next_event(self, max_bytes_per_recv=10240):
+    def next_event(self, max_bytes_per_recv: int = 10240) -> h11.Event:
         while True:
             event = self.conn.next_event()
             if event is h11.NEED_DATA:
@@ -49,7 +59,7 @@ class Client:
                 continue
             return event
 
-    def _get_token(self):
+    def _get_token(self) -> None:
         self._result = None
         with open('client.txt') as file:
             for line in file:
@@ -81,7 +91,11 @@ class Client:
                 elif error := data.get('error'):
                     logger.error(f'{error}')
 
-    def connect_to_chat(self, chat_name: str = 'public_chat', redirect=False) -> None:
+    def connect_to_chat(
+            self,
+            chat_name: str = 'public_chat',
+            redirect: bool = False
+    ) -> None:
         body = json.dumps({'chat_with': chat_name}).encode('utf-8')
         self._send(h11.Request(method='POST', target='/connect',
                                headers=[('Authorization', f'{self._token}'),
@@ -103,7 +117,6 @@ class Client:
                 elif event.status_code == 404:
                     logger.error(f'Not Found')
             if isinstance(event, h11.Data):
-                print('-' * 10, 'data   ', event.data.decode('utf-8'))
                 data = json.loads(event.data.decode('utf-8'))
                 if data.get('messages'):
                     logger.info(f'Get messages: {data}')
@@ -113,7 +126,11 @@ class Client:
                 if not redirect:
                     self._response = data
 
-    def send_message(self, receiver: str = 'public_chat', message: str = ''):
+    def send_message(
+            self,
+            receiver: str = 'public_chat',
+            message: str = ''
+    ) -> None:
         if not message:
             logger.error('Enter message, please.')
             return
@@ -136,7 +153,11 @@ class Client:
         if response:
             self._response = response[0]
 
-    def add_comment(self, message_id: int, comment: str = ''):
+    def add_comment(
+            self,
+            message_id: int,
+            comment: str = ''
+    ) -> None:
         if not comment:
             logger.error('Enter comment, please.')
             return
@@ -159,9 +180,13 @@ class Client:
         if response:
             self._response = response[0]
 
-    def report(self, report_on: str, chat_type: str = ''):
+    def report(
+            self,
+            report_on: str,
+            chat_type: str = ''
+    ) -> None:
         if not chat_type:
-            logger.error('Chat_type, please.')
+            logger.error('Enter chat_type argument, please.')
             return
         if chat_type not in ['public', 'private']:
             logger.error('Enter public or private in chat_type field, please.')
@@ -188,7 +213,7 @@ class Client:
         if response:
             self._response = response[0]
 
-    def even_cycle(self):
+    def even_cycle(self) -> tuple:
         redirect = 0
         response = []
         while True:
@@ -200,11 +225,11 @@ class Client:
                 if event.status_code == 201:
                     continue
                 elif event.status_code == 401:
-                    logger.error(f'Unauthorized')
+                    logger.error('Unauthorized')
                 elif event.status_code == 404:
-                    logger.error(f'Not Found')
+                    logger.error('Not Found')
                 elif event.status_code == 400:
-                    logger.error(f'BAD REQUEST')
+                    logger.error('BAD REQUEST')
             if isinstance(event, h11.Data):
                 data = json.loads(event.data.decode('utf-8'))
                 if data.get('info'):
@@ -217,7 +242,7 @@ class Client:
                 response.append(data)
         return redirect, response
 
-    def get_status(self):
+    def get_status(self) -> None:
         body = json.dumps({'user_name': self.user_name}).encode('utf-8')
         self._send(h11.Request(method='GET', target='/status',
                                headers=[('Authorization', f'{self._token}'),
@@ -235,9 +260,9 @@ class Client:
                 if event.status_code == 200:
                     continue
                 elif event.status_code == 401:
-                    logger.error(f'Unauthorized')
+                    logger.error('Unauthorized')
                 elif event.status_code == 404:
-                    logger.error(f'Not Found')
+                    logger.error('Not Found')
             if isinstance(event, h11.Data):
                 data = json.loads(event.data.decode('utf-8'))
                 if data.get('connected_as'):
@@ -247,17 +272,17 @@ class Client:
                 self._last_status = data
 
     @property
-    def response(self):
+    def response(self) -> Optional[dict]:
         return self._response
 
     @property
-    def last_chat_info(self):
+    def last_chat_info(self) -> Optional[dict]:
         return self._last_chat_info
 
     @property
-    def last_status(self):
+    def last_status(self) -> Optional[dict]:
         return self._last_status
 
-    def close_connection(self):
+    def close_connection(self) -> None:
         self._send(h11.ConnectionClosed())
         self.sock.close()

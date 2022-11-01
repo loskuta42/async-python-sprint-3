@@ -1,5 +1,5 @@
-import datetime
 import csv
+import datetime
 
 with open('datafiles/public_chat.csv', 'w') as csvfile:
     writer = csv.writer(csvfile, delimiter=',')

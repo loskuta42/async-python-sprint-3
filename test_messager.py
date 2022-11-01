@@ -1,21 +1,13 @@
 import datetime
 import json
-import logging
 import os
-import sys
 import time
 
+import h11
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
-import h11
-import io
-from contextlib import redirect_stdout
 
-from models import User, Message, Comment, Chat, ChatUser
-
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
-logger.addHandler(logging.StreamHandler(stream=sys.stdout))
+from models import Chat, ChatUser, Comment, Message, User
 
 basedir = os.path.abspath(os.path.dirname(__file__))
 engine = create_engine('sqlite:///' + os.path.join(basedir, 'data.sqlite'), echo=True)
@@ -80,7 +72,6 @@ def test_send_message_to_public_chat(client_one):
     assert message_obj
     assert response['info'] == 'Message have sent!'
     for message in chat_info['messages']:
-        print(message)
         if message['id'] == message_obj.id:
             assert message_obj.text == message['message_text']
             break

@@ -5,8 +5,8 @@ import time
 import pytest
 
 from client import Client
-from server import Server
 from protocol import HTTPProtocol
+from server import Server
 
 
 def server(host, port):
@@ -31,6 +31,7 @@ def client_one():
 @pytest.fixture
 def client_two():
     return Client(server_host='127.0.0.1', server_port=8000, user_name='test_client2')
+
 
 @pytest.fixture
 def protocol_object():
