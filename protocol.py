@@ -48,6 +48,7 @@ MESSAGES_FOR_USER = {
 
 
 class HTTPProtocol(asyncio.Protocol):
+    """Custom HTTP protocol."""
     def __init__(self):
         self.connection = h11.Connection(h11.SERVER)
 
@@ -305,6 +306,7 @@ class HTTPProtocol(asyncio.Protocol):
                 body = self._get_private_messages(session, user_obj, user_with, message_number)
         headers = self._get_headers_for_json_body(body)
         self._send_response_with_ok_code(body=body, headers=headers)
+        logger.info('Sent chat info.')
 
     def _send_response_for_comment(
             self,
@@ -319,6 +321,7 @@ class HTTPProtocol(asyncio.Protocol):
                 Comment(author=user_obj, message=message, text=comment)
                 session.commit()
                 self._send_created_code('Comment have created!')
+                logger.info('Comment have created')
             else:
                 self._send_error(400)
 
@@ -375,6 +378,7 @@ class HTTPProtocol(asyncio.Protocol):
                         return
                     self._add_message_to_db(session, message, chat_obj, user_obj)
             self._send_created_code('Message have sent!')
+            logger.info('Message have sent.')
 
     def _is_banned(
             self,
@@ -424,6 +428,7 @@ class HTTPProtocol(asyncio.Protocol):
         self.send(response)
         self.send(h11.Data(data=body))
         self.send(h11.EndOfMessage())
+        logger.error(f'Send error with code {error_code}')
 
     def _send_info(
             self,
@@ -432,6 +437,7 @@ class HTTPProtocol(asyncio.Protocol):
         body = self._get_encode_body_from_data({'info': message})
         headers = self._get_headers_for_json_body(body)
         self._send_response_with_ok_code(body, headers)
+        logger.info(f'Send info.')
 
     def _send_warning(
             self,
@@ -440,6 +446,7 @@ class HTTPProtocol(asyncio.Protocol):
         body = self._get_encode_body_from_data({'warning': message})
         headers = self._get_headers_for_json_body(body)
         self._send_response_with_ok_code(body, headers)
+        logger.warning('Send warning.')
 
     def _send_token(
             self,
@@ -517,6 +524,7 @@ class HTTPProtocol(asyncio.Protocol):
                 chat_user_obj.cautions += 1
                 session.commit()
             self._send_created_code('Report sent success.')
+            logger.info('Add caution/report.')
 
     @staticmethod
     def _get_headers_for_json_body(body: bytes) -> list:
@@ -535,6 +543,7 @@ class HTTPProtocol(asyncio.Protocol):
         self.send(response)
         self.send(h11.Data(data=body))
         self.send(h11.EndOfMessage())
+        logger.info('Send 201 code')
 
     @staticmethod
     def _get_encode_body_from_data(data: dict) -> bytes:
