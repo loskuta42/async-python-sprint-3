@@ -18,7 +18,6 @@ from utils import get_logger_for_module
 
 logger = get_logger_for_module(__name__)
 
-
 basedir = os.path.abspath(os.path.dirname(__file__))
 engine = create_engine('sqlite:///' + os.path.join(basedir, 'data.sqlite'), echo=True)
 
