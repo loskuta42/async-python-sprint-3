@@ -2,9 +2,11 @@ import os
 
 from sqlalchemy import (Boolean, Column, DateTime, ForeignKey, Integer,
                         SmallInteger, String, Text, create_engine)
-from sqlalchemy.orm import declarative_base, relationship, Session
+from sqlalchemy.orm import Session, declarative_base, relationship
 from sqlalchemy.sql import func
 from sqlalchemy_utils.types.choice import ChoiceType
+
+from enums import ChatType
 
 
 basedir = os.path.abspath(os.path.dirname(__file__))
@@ -64,14 +66,9 @@ class User(Base):
 
 
 class Chat(Base):
-    TYPES = [
-        ('private', 'Private'),
-        ('chanel', 'Chanel'),
-        ('public', 'Public')
-    ]
     __tablename__ = 'chats'
     id = Column(Integer, primary_key=True, autoincrement=True)
-    type = Column(ChoiceType(TYPES))
+    type = Column(ChoiceType(ChatType, impl=String()))
     name = Column(String, nullable=False)
     messages = relationship('Message', backref='chat', lazy='dynamic', cascade='all, delete')
     users = relationship('User', secondary='chats_users', back_populates='chats', lazy='dynamic')
@@ -87,7 +84,7 @@ if __name__ == '__main__':
     with Session(engine) as session:
         public_chat = Chat(
             name='public_chat',
-            type='public'
+            type=ChatType.PUBLIC
         )
         session.add(public_chat)
         session.commit()

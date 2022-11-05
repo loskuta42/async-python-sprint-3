@@ -7,6 +7,7 @@ import h11
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
+from enums import ChatType
 from models import Chat, ChatUser, Comment, Message, User
 
 
@@ -121,7 +122,7 @@ def test_comment(client_one, client_two):
 def test_private_message(client_one, client_two):
     message_text = str(time.time())
     client_one.send_message(receiver=client_two.user_name, message=message_text)
-    time.sleep(3)
+    time.sleep(4)
     client_two.connect_to_chat(chat_name=client_one.user_name)
     assert client_two.last_chat_info.get('unread_messages')
     assert client_two.last_chat_info['unread_messages'][0]['message_text'] == message_text
@@ -145,7 +146,7 @@ def test_report(client_one, client_two):
         chat_user_obj.cautions = 2
         session.commit()
     time.sleep(2)
-    client_two.report(report_on=client_one.user_name, chat_type='public')
+    client_two.report(report_on=client_one.user_name, chat_type=ChatType.PUBLIC)
     time.sleep(2)
     message_text = str(time.time())
     client_one.send_message(message=message_text)

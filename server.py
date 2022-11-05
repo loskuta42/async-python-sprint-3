@@ -1,16 +1,10 @@
 import asyncio
-import logging.config
-from typing import Coroutine
-
-import yaml
 
 from protocol import HTTPProtocol
+from utils import get_logger_for_module
 
-with open('logging_config.yaml', 'r') as f:
-    config = yaml.safe_load(f.read())
-    logging.config.dictConfig(config)
 
-logger = logging.getLogger(__name__)
+logger = get_logger_for_module(__name__)
 
 
 class Server:
